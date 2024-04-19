@@ -112,6 +112,7 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
     # if returns true, the plugin will be loaded by Prism
     def isActive(self): 
         self.core.registerCallback("onProjectBrowserShow", self.addSelf, plugin=self)
+        self.core.registerCallback("onProjectChanged", self.onProjectChanged, plugin=self)
 
         return True
     
@@ -139,6 +140,12 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
                 
         self.tw_identifier.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tw_identifier.customContextMenuRequested.connect(self.onCustomContextMenuRequested)
+        
+    def onProjectChanged(self, *args):
+        if self.w_entities:
+            self.w_entities.refreshEntities(defaultSelection=False)
+        
+        self.tw_identifier.clear()
         
     def onCustomContextMenuRequested(self, pos):
         
@@ -175,7 +182,7 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
     def addPreset(self):
         
         def onAddPreset():
-            name = new_name.text()
+            name = new_name.text() if new_name.text() != "" else listWidget.currentItem().text()
             path = os.path.join(self.getPathFromEntity(),"Notes")
             
             note_path:str = os.path.join(path,name+".md")
@@ -343,8 +350,6 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
             
         self.setCurrentText(name,file)
        
-    def closeEvent(self, event=None):
-        self.closing.emit()
 
     def loadLayout(self):
         import EntityWidget # type: ignore
@@ -393,6 +398,9 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
         self.w_entities.getPage("Shots").itemChanged.connect(lambda: self.entityChanged("shot"))
         self.w_entities.tabChanged.connect(self.onTabChanged)
         self.tw_identifier.itemClicked.connect(self.note_QTWItem)
+
+        self.w_entities.getPage("Assets").tw_tree.currentItemChanged.connect(self.tw_identifier.clear)
+        self.w_entities.getPage("Shots").tw_tree.currentItemChanged.connect(self.tw_identifier.clear)
 
     def readConfig(self,path:str):
         with open(path, 'r') as f:
@@ -504,6 +512,7 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
                         # Add it to the notes list
                         path = os.path.join(path,"Notes")
                 else:
+                    return
                     self.core.popup("This type is not supported.","Warning")
                         
         elif entityType == "shot":
