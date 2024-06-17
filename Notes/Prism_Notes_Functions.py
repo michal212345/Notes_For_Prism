@@ -1,8 +1,13 @@
-from qtpy.QtCore import *
-from qtpy.QtGui import *
-from qtpy.QtWidgets import *
+try:
+    from qtpy.QtCore import *
+    from qtpy.QtGui import *
+    from qtpy.QtWidgets import *
+except ImportError:
+    print("Failed to import qtpy, trying PySide6.")
+    from PySide6.QtCore import *
+    from PySide6.QtGui import *
+    from PySide6.QtWidgets import *
 
-from PrismUtils.Decorators import err_catcher_plugin as err_catcher # type: ignore
 import PrismCore # type: ignore 
 
 import NotesBrowser
@@ -15,9 +20,12 @@ class MarkdownTextEdit(QTextEdit):
     clearSignal = Signal()
     saveSignal = Signal()
     setTextSignal = Signal(str)
+    setBlockTextSignal = Signal(bool)
     
     text = ""
     rightClick = False
+    
+    blockText = True
     
     def __init__(self ,parent=None):
         super().__init__(parent)
@@ -28,11 +36,20 @@ class MarkdownTextEdit(QTextEdit):
 
         self.clearSignal.connect(self.clearText)
         self.setTextSignal.connect(self.setText)
+        self.setBlockTextSignal.connect(self.setBlockText)
 
     def text_Changed(self):
         self.text = self.toPlainText()
 
-    def eventFilter (self, source, event):
+    def setBlockText(self, block:bool):
+        self.blockText = block
+
+    def eventFilter (self, source, event:QEvent):
+        
+        if self.blockText:
+            event.ignore()
+            return
+        
         if event.type() == QEvent.FocusOut:
 
             # Check if the focus out event was caused by a mouse button release
@@ -59,6 +76,7 @@ class MarkdownTextEdit(QTextEdit):
             self.setReadOnly(False)
             
             self.blockSignals(False)
+            
 
         # Pass the event to the base class
         return super().eventFilter(source, event)
@@ -308,7 +326,7 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
         
         self.tw_identifier.takeTopLevelItem(self.tw_identifier.indexOfTopLevelItem(item))
         
-        self.clearSignal.emit()
+        self.w_contents.clearSignal.emit()
         
     def addNote(self):
         # add item to self.tw_identifier
@@ -437,6 +455,8 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
         
         with open(note_path,'r') as f:
             self.w_contents.setTextSignal.emit( f.read() )
+        
+        self.w_contents.setBlockTextSignal.emit(False)
             
     # This code is very prone to errors and should be handled better
     def saveCurrentText(self):
@@ -492,6 +512,7 @@ class Prism_Notes_Functions(QDialog,NotesBrowser.Ui_dlg_NotesBrowser):
         
         self.tw_identifier.clear()
         self.w_contents.clearSignal.emit()
+        self.w_contents.setBlockTextSignal.emit(True)
         
         if entityType == "asset":
                 if entity["type"] == "assetFolder":
